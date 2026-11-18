@@ -12,24 +12,61 @@ document.getElementById('settings').addEventListener('click', (e) => {
 const say = (html) => { view.innerHTML = `<p class="status">${html}</p>`; };
 
 const KNOWN_BRANDS = [
-  'Air Jordan', 'Jordan', 'Nike', 'adidas', 'Under Armour', 'New Balance', 'Puma', 'Converse', 'Reebok',
+  'Jordan', 'Nike', 'adidas', 'Under Armour', 'New Balance', 'Puma', 'Converse', 'Reebok',
   'ASICS', 'Anta', 'Li-Ning', 'Way of Wade', '361', 'Peak', 'Rigorer', 'Vans', 'Saucony', 'Hoka', 'On',
 ];
 
-/** A shop that publishes no brand usually starts the title with it. */
-function guessBrand(name) {
+// Brand shops often leave the brand out of the product name ("Kobe 8 Protro"
+// on nike.com), so the site itself says whose shoe it is.
+const SITE_BRANDS = {
+  'nike.com': 'Nike', 'jordan.com': 'Jordan', 'adidas.com': 'adidas', 'adidas.ca': 'adidas',
+  'newbalance.com': 'New Balance', 'newbalance.ca': 'New Balance', 'underarmour.com': 'Under Armour',
+  'underarmour.ca': 'Under Armour', 'converse.com': 'Converse', 'puma.com': 'Puma', 'anta.com': 'Anta',
+};
+
+/** A shop that publishes no brand usually starts the title with it, or is the brand. */
+function guessBrand(name, site) {
   const lower = name.toLowerCase();
-  return KNOWN_BRANDS.find((b) => lower.startsWith(`${b.toLowerCase()} `)) || '';
+  const inName = KNOWN_BRANDS.find((b) => lower.startsWith(`${b.toLowerCase()} `));
+  if (inName) return inName;
+  const fromSite = Object.entries(SITE_BRANDS).find(([domain]) => site === domain || site.endsWith(`.${domain}`));
+  // Jordan product pages live on nike.com
+  if (fromSite?.[1] === 'Nike' && /^(air )?jordan\b/i.test(name)) return 'Jordan';
+  return fromSite?.[1] || '';
 }
 
-/** Shops prefix the brand and often append the colourway: split them back out. */
+/**
+ * Shop titles carry extra words around the shoe: a site suffix ("| Nike",
+ * ". Nike.com"), a category ("Men's Basketball Shoes"), and a quoted
+ * colourway in the middle ("Kobe 8 Protro 'Shanghai Fireworks' Basketball
+ * Shoes"). Peel those off and split the colourway out.
+ */
 function splitName(name, brand) {
-  let model = name.replace(/\s*[|–-]\s*(Nike|StockX|GOAT|Foot Locker|adidas|New Balance|Flight Club)[^|]*$/i, '').trim();
+  let model = name
+    .replace(/\s*[|–—]\s*[^|–—]*$/, '')
+    .replace(/\.?\s*[A-Za-z]+\.(com|ca|co\.uk)\s*$/i, '')
+    .replace(/\s+(men's|women's|kids'|big kids'|unisex)?\s*(basketball |running |lifestyle |skate )?(shoes?|sneakers?)\s*$/i, '')
+    .trim();
   if (brand && model.toLowerCase().startsWith(brand.toLowerCase())) model = model.slice(brand.length).trim();
   let colorway = '';
-  const quoted = model.match(/^(.*?)\s*["'“‘](.+?)["'”’]\s*$/);
-  if (quoted) [, model, colorway] = quoted;
+  const quoted = model.match(/^(.*?)\s*["'“‘](.+?)["'”’]\s*(.*)$/);
+  if (quoted) {
+    const [, before, inQuotes, after] = quoted;
+    model = `${before} ${after}`.trim();
+    colorway = inQuotes;
+  }
   return { model, colorway };
+}
+
+/** Is this pair already filed, and what does StockX call it? One request. */
+async function resolve(settings, sku) {
+  try {
+    return await api(settings, 'GET', `/api/pairs/resolve?sku=${encodeURIComponent(sku)}`);
+  } catch {
+    // An older server without /resolve: fall back to the duplicate check alone.
+    const { found, pair } = await api(settings, 'GET', `/api/pairs/lookup?sku=${encodeURIComponent(sku)}`);
+    return { existing: found ? pair : null, canonical: null };
+  }
 }
 
 async function api(settings, method, route, body) {
@@ -61,7 +98,7 @@ async function main() {
     return;
   }
 
-  const brand = found.brand || guessBrand(found.name || '');
+  const brand = found.brand || guessBrand(found.name || '', found.site);
   const { model, colorway } = splitName(found.name || '', brand);
   view.replaceChildren(document.getElementById('product').content.cloneNode(true));
   const field = (n) => view.querySelector(`[name="${n}"]`);
@@ -72,7 +109,8 @@ async function main() {
   field('price').value = found.price ? String(Math.round(found.price)) : '';
   const img = view.querySelector('img');
   img.onerror = () => { view.querySelector('figure').hidden = true; };
-  if (found.image) img.src = found.image; else view.querySelector('figure').hidden = true;
+  let imageUrl = found.image || '';
+  if (imageUrl) img.src = imageUrl; else view.querySelector('figure').hidden = true;
 
   let status = 'want';
   view.querySelectorAll('.toggle button').forEach((b) =>
@@ -90,17 +128,32 @@ async function main() {
   const setNote = (text, tone = '') => { note.textContent = text; note.className = `note ${tone}`; };
   setNote(`Read from ${found.site} (${found.source}). Check the details, then save.`);
 
-  // Already filed? Say so before the owner clicks anything.
+  // Match on the style code, not the name: shops and StockX often call the
+  // same colourway different things, but the code is printed on the box.
+  // Already filed: say so. Known to StockX: show its name and photo, which
+  // is exactly what will be saved, so the grid stays consistent.
   if (found.sku) {
     try {
-      const { found: dupe, pair } = await api(settings, 'GET', `/api/pairs/lookup?sku=${encodeURIComponent(found.sku)}`);
-      if (dupe) {
-        setNote(`Already in your stockroom (${pair.status === 'owned' ? 'owned' : 'wishlist'}): ${pair.model} ${pair.colorway || ''}`, 'warn');
+      const { existing, canonical } = await resolve(settings, found.sku);
+      if (existing) {
+        setNote(`Already in your stockroom (${existing.status === 'owned' ? 'owned' : 'wishlist'}): ${existing.model} ${existing.colorway || ''}`, 'warn');
         save.textContent = 'Already saved';
         save.disabled = true;
+      } else if (canonical) {
+        field('brand').value = canonical.brand || field('brand').value;
+        field('model').value = canonical.model || field('model').value;
+        field('colorway').value = canonical.colorway || field('colorway').value;
+        if (canonical.imageUrl) {
+          imageUrl = canonical.imageUrl;
+          img.src = imageUrl;
+          view.querySelector('figure').hidden = false;
+        }
+        setNote(`Matched ${found.sku} on StockX: name and photo are StockX's, so it matches the rest of your grid.`, 'ok');
+      } else {
+        setNote(`Not found on StockX, so the details are read from ${found.site}. Check them before saving.`);
       }
     } catch {
-      // lookup is a convenience; saving still works without it
+      // a convenience: saving still works without it
     }
   }
 
@@ -116,9 +169,9 @@ async function main() {
         sku,
         price: field('price').value,
         status,
-        // An image the shop serves is a fallback: with a style code the
-        // server swaps in KicksDB's photo, which matches the rest of the grid.
-        imageUrl: found.image || '',
+        // The shop's photo is only kept when StockX doesn't know the shoe;
+        // with a match, the server stores StockX's photo either way.
+        imageUrl,
         notes: `Saved from ${found.site}`,
         lookup: Boolean(sku),
       });
