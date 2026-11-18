@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Save to Stockroom: settings</title>
+  <style>body { width: auto; max-width: 460px; margin: 32px auto; } main { padding: 0; }</style>
+</head>
+<body>
+  <main>
+    <h1 style="font-size:16px;margin:0">Save to Stockroom</h1>
+    <p class="status">Point the extension at your Stockroom and give it the owner token. Both stay in this browser.</p>
+    <label>Stockroom address <input id="url" placeholder="https://your-stockroom.up.railway.app" /></label>
+    <label>Owner token <input id="token" type="password" /></label>
+    <button id="save" class="primary" type="button">Save and test</button>
+    <p id="result" class="note"></p>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

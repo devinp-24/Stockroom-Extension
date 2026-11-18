@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Save to Stockroom</title>
+</head>
+<body>
+  <header>
+    <span class="mark"></span>
+    <h1>The Stockroom</h1>
+    <a id="settings" href="#" title="Settings">Settings</a>
+  </header>
+
+  <main id="view">
+    <p class="status">Reading this page…</p>
+  </main>
+
+  <template id="product">
+    <figure><img alt="" /></figure>
+    <label>Brand <input name="brand" /></label>
+    <label>Model <input name="model" /></label>
+    <label>Colourway <input name="colorway" /></label>
+    <div class="row">
+      <label>Style code <input name="sku" spellcheck="false" /></label>
+      <label>Price <input name="price" inputmode="decimal" /></label>
+    </div>
+    <div class="toggle" role="radiogroup" aria-label="Save to">
+      <button type="button" data-status="want" class="on" role="radio" aria-checked="true">Wishlist</button>
+      <button type="button" data-status="owned" role="radio" aria-checked="false">I own it</button>
+    </div>
+    <p class="note"></p>
+    <button type="button" id="save" class="primary">Save to Stockroom</button>
+  </template>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

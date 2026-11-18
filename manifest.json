@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Save to Stockroom",
+  "version": "1.0.0",
+  "description": "Save the sneaker you're looking at to The Stockroom wishlist in one click, from any shop.",
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Save to Stockroom",
+    "default_icon": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+  },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "options_page": "src/options.html",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Open Save to Stockroom"
+    }
+  }
+}
