@@ -2,7 +2,8 @@
 
 A Chrome extension that saves the sneaker you're looking at, on any shop, to
 [The Stockroom](https://github.com/devinp-24/the-stockroom) wishlist in one
-click (or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>).
+click (or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>). The live, read-only
+Stockroom is at [the-stockroom-production.up.railway.app](https://the-stockroom-production.up.railway.app).
 
 I keep a wishlist of 800+ pairs. Before this, adding one meant copying the
 name and style code from a shop tab, switching to the app and searching
