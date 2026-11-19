@@ -37,9 +37,15 @@ browser only.
 
 ## Tested on
 
-The extraction is tested against fixture pages with JSON-LD in a `@graph`
-(Nike-style) and against Open-Graph-only pages. Shops change their markup, so
-any field it gets wrong can be edited in the popup before saving.
+- **Nike:** product data with no brand field and the colourway mid-title, e.g. "Kobe 8 Protro 'Shanghai
+  Fireworks' Basketball Shoes".
+- **GOAT:** no product data at all. The style code sits in a spec table ("SKU" above "IQ5365 400", with a
+  space instead of a dash), and the colourway is under "Nickname".
+- Fixture pages for both, plus Open-Graph-only shops.
+
+Style codes are matched without regard to separators (`IQ5365-400`, `IQ5365 400` and `IQ5365400` are the
+same shoe), and they're read case-sensitively, so ordinary words in a product description are never
+mistaken for a code. Any field can still be edited in the popup before saving.
 
 ## Next
 

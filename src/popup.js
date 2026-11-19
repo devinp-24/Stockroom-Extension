@@ -25,13 +25,14 @@ const SITE_BRANDS = {
 };
 
 /** A shop that publishes no brand usually starts the title with it, or is the brand. */
-function guessBrand(name, site) {
+function guessBrand(rawName, site) {
+  const name = rawName.replace(/^buy\s+/i, '');
+  // Air Jordans are filed under Jordan, wherever they're sold.
+  if (/^(air )?jordan\b/i.test(name)) return 'Jordan';
   const lower = name.toLowerCase();
   const inName = KNOWN_BRANDS.find((b) => lower.startsWith(`${b.toLowerCase()} `));
   if (inName) return inName;
   const fromSite = Object.entries(SITE_BRANDS).find(([domain]) => site === domain || site.endsWith(`.${domain}`));
-  // Jordan product pages live on nike.com
-  if (fromSite?.[1] === 'Nike' && /^(air )?jordan\b/i.test(name)) return 'Jordan';
   return fromSite?.[1] || '';
 }
 
@@ -43,7 +44,9 @@ function guessBrand(name, site) {
  */
 function splitName(name, brand) {
   let model = name
+    .replace(/^buy\s+/i, '')                                   // GOAT: "Buy Nike …"
     .replace(/\s*[|–—]\s*[^|–—]*$/, '')
+    .replace(/\s+-\s+[A-Z0-9]{2,10}(?:[- ][A-Z0-9]{2,5})?\s*$/, '')  // "… - IQ5365 400"
     .replace(/\.?\s*[A-Za-z]+\.(com|ca|co\.uk)\s*$/i, '')
     .replace(/\s+(men's|women's|kids'|big kids'|unisex)?\s*(basketball |running |lifestyle |skate )?(shoes?|sneakers?)\s*$/i, '')
     .trim();
@@ -52,8 +55,11 @@ function splitName(name, brand) {
   const quoted = model.match(/^(.*?)\s*["'“‘](.+?)["'”’]\s*(.*)$/);
   if (quoted) {
     const [, before, inQuotes, after] = quoted;
-    model = `${before} ${after}`.trim();
-    colorway = inQuotes;
+    // A release year after the nickname belongs with it, the way StockX
+    // writes it: "Varsity Royal (2026)", not a model called "Air Bakin 2026".
+    const year = after.match(/^\(?((?:19|20)\d{2})\)?$/);
+    model = year ? before.trim() : `${before} ${after}`.trim();
+    colorway = year ? `${inQuotes} (${year[1]})` : inQuotes;
   }
   return { model, colorway };
 }

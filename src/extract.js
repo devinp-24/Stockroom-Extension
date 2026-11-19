@@ -37,15 +37,41 @@ export function extractProduct() {
   const meta = (name) =>
     document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.getAttribute('content')?.trim() || '';
 
-  // Style codes: Nike/Jordan "CW2190-300", adidas "IF1234", New Balance "BB550WT1".
-  const STYLE_CODE = /\b([A-Z]{1,3}\d{3,5}[- ]\d{3}|[A-Z]{2}\d{4}|[A-Z]{1,3}\d{3,4}[A-Z]{1,4}\d?)\b/;
-  const fromText = () => {
-    const labelled = document.body.innerText.match(/(?:style|sku|style code|product code)\s*[:#]?\s*([A-Z0-9-]{5,14})/i);
-    if (labelled) return labelled[1].toUpperCase();
-    const anywhere = document.body.innerText.slice(0, 20000).match(STYLE_CODE);
-    return anywhere ? anywhere[1] : '';
-  };
+  // Style codes. Shops write the same code differently: Nike and StockX use
+  // "CW2190-300", GOAT uses "CW2190 300", some shops run it together. Accept a
+  // dash, a space or nothing between the two parts, and tidy the separator to
+  // a dash so it looks like StockX's (matching ignores it either way).
+  // Case-sensitive on purpose: codes are upper case, and a case-insensitive
+  // match would happily take an ordinary word from a product description.
+  const CODE = /^[A-Z0-9]{2,10}(?:[- ]?[A-Z0-9]{2,5})?$/;
+  const tidyCode = (code) => code.trim().replace(/^([A-Z]{1,3}\d{3,5})[ ](\d{3})$/, '$1-$2');
 
+  // Spec tables ("SKU" over "IQ5365 400" on GOAT, "Style: CW2190-300"
+  // elsewhere) render as a label line followed by its value, or both on one
+  // line. Read them as label/value pairs rather than searching loose text.
+  const lines = document.body.innerText.split('\n').map((l) => l.trim()).filter(Boolean);
+  function labelled(labels) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      for (const label of labels) {
+        const same = line.match(new RegExp(`^${label}\\s*[:#]\\s*(.+)$`, 'i'));
+        if (same) return same[1].trim();
+        if (line.toLowerCase() === label.toLowerCase() && lines[i + 1]) return lines[i + 1];
+      }
+    }
+    return '';
+  }
+
+  const fromLabels = () => {
+    const value = labelled(['SKU', 'Style', 'Style Code', 'Style #', 'Style No', 'Product Code', 'Manufacturer SKU', 'Model Number']);
+    return CODE.test(value) ? tidyCode(value) : '';
+  };
+  const fromLooseText = () => {
+    // Last resort: a Nike-shaped code anywhere in the title or the top of the page.
+    const text = `${document.title}\n${document.body.innerText.slice(0, 20000)}`;
+    const hit = text.match(/\b([A-Z]{1,3}\d{3,5}[- ]\d{3})\b/);
+    return hit ? tidyCode(hit[1]) : '';
+  };
   const offers = asArray(product?.offers).flatMap((o) => asArray(o.offers || o));
   const price = offers.map((o) => Number(o.price ?? o.lowPrice)).find((n) => Number.isFinite(n) && n > 0) || null;
   const image = asArray(product?.image).map((i) => (typeof i === 'string' ? i : i?.url)).find(Boolean) || meta('og:image');
@@ -55,8 +81,13 @@ export function extractProduct() {
     site: location.hostname.replace(/^www\./, ''),
     name: text(product?.name) || meta('og:title') || document.title,
     brand: text(product?.brand),
-    colorway: text(product?.color),
-    sku: String(product?.sku || product?.mpn || product?.productID || '').trim() || fromText(),
+    // GOAT's spec table names the colourway "Nickname"; "Colorway" there is
+    // the material colour list ("Varsity Royal/White-Black-Metallic Silver").
+    colorway: text(product?.color) || labelled(['Nickname']),
+    sku: (() => {
+      const structured = String(product?.sku || product?.mpn || product?.productID || '').trim();
+      return (structured && CODE.test(structured) ? tidyCode(structured) : '') || fromLabels() || fromLooseText();
+    })(),
     image: image || '',
     price,
     currency: offers.map((o) => o.priceCurrency).find(Boolean) || null,
